@@ -3,10 +3,10 @@ Wazuh alerts in Telegram
 
 ![Example alert](alert.jpg)
 
-If you want to receive Wazuh alerts into the telegram channel then:
+If you want to receive Wazuh alerts into the telegram channel, then:
 
-1. Place the **custom-telegram** binary into then **/var/ossec/integrations** folder on Wazuh manager host
-2. Add the followed block into the Wazuh manager configuration (**/var/ossec/etc/ossec.conf**)
+1. Place the **custom-telegram** binary into the **/var/ossec/integrations** directory on the Wazuh manager host.
+2. Add the following block to the Wazuh manager configuration (**/var/ossec/etc/ossec.conf**)
 ```
    <integration>
      <name>custom-telegram</name>
@@ -16,4 +16,4 @@ If you want to receive Wazuh alerts into the telegram channel then:
      <alert_format>json</alert_format>
    </integration>
 ```
-3. And restart the Wazuh manager
+3. And restart the Wazuh manager.
