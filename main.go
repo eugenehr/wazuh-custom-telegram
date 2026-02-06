@@ -2,18 +2,21 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
+	"time"
 )
 
 func prepareAlert() map[string]string {
-	// Файл с событием
+	// alert.json
 	alertJson := os.Args[1]
-	// ID чата/канала телеграм
+	// Telegram chat/channel ID
 	chatId := os.Args[2]
 
 	jsonData, err := os.ReadFile(alertJson)
@@ -72,7 +75,9 @@ func prepareAlert() map[string]string {
 					if system, ok := winMap["system"]; ok {
 						if systemMap, ok := system.(map[string]any); ok {
 							if message, ok := systemMap["message"]; ok {
-								winSysMessage = fmt.Sprintf("%v", message)
+								winSysMessage = strings.TrimSpace(fmt.Sprintf("%v", message))
+								winSysMessage = strings.TrimPrefix(winSysMessage, "\"")
+								winSysMessage = strings.TrimSuffix(winSysMessage, "\"")
 							}
 						}
 					}
@@ -90,6 +95,9 @@ func prepareAlert() map[string]string {
 	message += "<b>Agent: </b>" + html.EscapeString(agentName) + " (Id " + html.EscapeString(agentId) + ")\n"
 	message += "<b>Rule: </b>" + html.EscapeString(ruleId) + " (Level " + html.EscapeString(level) + ")\n"
 	message += "<b>Groups: </b>" + html.EscapeString(groups) + "\n"
+
+	message = strings.ReplaceAll(message, "\r", "")
+	message = regexp.MustCompile("\n{3,}").ReplaceAllString(message, "\n\n")
 
 	msg := make(map[string]string)
 	msg["chat_id"] = chatId
@@ -113,8 +121,11 @@ func main() {
 		panic(err.Error())
 	}
 
-	_, err = http.Post(hookUrl, "application/json", bytes.NewBuffer(msgData))
-	if err != nil {
-		panic(err.Error())
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, hookUrl, bytes.NewBuffer(msgData))
+	req.Header.Set("Content-Type", "application/json")
+
+	_, _ = http.DefaultClient.Do(req)
 }
