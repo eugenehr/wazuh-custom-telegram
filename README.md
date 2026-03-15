@@ -17,3 +17,10 @@ If you want to receive Wazuh alerts into the telegram channel, then:
    </integration>
 ```
 3. And restart the Wazuh manager.
+
+4. If Telegram is not directly accessible, add the **?proxy=<proxy_url>** query parameter to the hook_url.
+   Both HTTP and SOCKS5 proxies are supported:
+````
+  <hook_url>https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/sendMessage?proxy=http://[user:pasw]@host:port</hook_url>
+  <hook_url>https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/sendMessage?proxy=socks://[user:pasw]@host:port</hook_url>
+````

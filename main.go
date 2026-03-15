@@ -6,11 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/net/proxy"
 )
 
 func prepareAlert() map[string]string {
@@ -107,6 +111,56 @@ func prepareAlert() map[string]string {
 	return msg
 }
 
+func setupHttpClient(hookUrl string) (*http.Client, string, error) {
+	var httpClient = http.DefaultClient
+
+	// test for ?proxy= query parameter in hook_url
+	u, err := url.Parse(hookUrl)
+	if err == nil {
+		// remove query parameters
+		hookUrl = fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, u.Path)
+		// parse proxy url
+		proxyUrl := u.Query().Get("proxy")
+		if proxyUrl != "" {
+			pu, err := url.QueryUnescape(proxyUrl)
+			if err == nil {
+				u, err = url.Parse(pu)
+				if err != nil {
+					return nil, "", err
+				}
+				if u.Scheme == "http" {
+					httpClient = &http.Client{
+						Transport: &http.Transport{
+							Proxy: http.ProxyURL(u),
+						},
+					}
+				} else if u.Scheme == "socks" || u.Scheme == "socks5" {
+					var auth *proxy.Auth
+					if u.User != nil {
+						password, _ := u.User.Password()
+						auth = &proxy.Auth{
+							User:     u.User.Username(),
+							Password: password,
+						}
+					}
+					socksDialer, err := proxy.SOCKS5("tcp", u.Host, auth, proxy.Direct)
+					if err != nil {
+						return nil, "", err
+					}
+					httpClient = &http.Client{
+						Transport: &http.Transport{
+							DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+								return socksDialer.Dial(network, addr)
+							},
+						},
+					}
+				}
+			}
+		}
+	}
+	return httpClient, hookUrl, nil
+}
+
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: custom-telegram <alert.json> <chat_id> <hook_url>")
@@ -115,6 +169,10 @@ func main() {
 
 	// Telegram sendMessage full url
 	hookUrl := os.Args[3]
+	httpClient, hookUrl, err := setupHttpClient(hookUrl)
+	if err != nil {
+		panic(err)
+	}
 
 	msgData, err := json.Marshal(prepareAlert())
 	if err != nil {
@@ -127,5 +185,8 @@ func main() {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, hookUrl, bytes.NewBuffer(msgData))
 	req.Header.Set("Content-Type", "application/json")
 
-	_, _ = http.DefaultClient.Do(req)
+	_, err = httpClient.Do(req)
+	if err != nil {
+		panic(err.Error())
+	}
 }
